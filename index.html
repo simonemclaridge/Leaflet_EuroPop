@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<!--Mod 6 Assignment for GIST 7130, Simone Claridge-->
+<!-- Leaflet map that shows the population of European countries-->
+<html lang="en" >
+<head>
+    <title>Europe Population Map</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin="">
+        <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og==" crossorigin=""></script>
+       <!--CSS Style for the map control-->
+	 <style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		#map { width: 800px; height: 500px; }
+                .info { padding: 6px 8px; 
+                       font: 14px/16px Arial, Helvetica, sans-serif; 
+                       background: white; 
+                       background: rgba(255,255,255,0.8); 
+                       box-shadow: 0 0 15px rgba(0,0,0,0.2); 
+                       border-radius: 5px; } 
+                .info h4 { margin: 0 0 5px; color: #777; }
+                .legend { text-align: left; line-height: 18px; color: #555; } 
+                .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+        </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="europe.js"></script>
+  <script>
+        //initialize the map on the "map" div with a given center and a zoom
+	var map = L.map('map').setView([49.782,9.829],3 );
+        
+        //display map with CartoDB dark matter tiles
+        var CartoDB_DarkMatterNoLabels= L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+	subdomains: 'abcd',
+	maxZoom: 19
+        }).addTo(map);
+ 
+        //add europe country data to the map
+        L.geoJson(europeData).addTo(map);
+
+	// control that shows country info on hover
+	var info = L.control();
+
+	info.onAdd = function (map) {
+		this._div = L.DomUtil.create('div', 'info'); //create a dive with a class "info"
+		this.update();
+		return this._div;
+	};
+        
+        //method that updates the control based on the feature properties passed
+	info.update = function (props) {
+		this._div.innerHTML = '<h4>Europe Population</h4>' +  (props ?
+			'<b>' + props.name + '</b><br />' + props.pop_est+ ' people'
+			: 'Hover over a country');
+	};
+
+	info.addTo(map);
+
+        // get color depending on population value
+	function getColor(d) {
+		return d > 80000000 ? '#081d58' :
+                       d > 60000000  ? '#253494' :
+		       d > 50000000 ? '#225ea8' :
+		       d > 40000000? '#1d91c0' :
+		       d > 30000000? '#41b6c4' :
+		       d > 20000000? '#7fcdbb' :
+		       d > 10000000? '#c7e9b4' :
+		       d > 5000000? '#edf8b1' :
+		       '#ffffd9';
+	}
+        
+       //syles europe geojson layer, country fill depends on population
+       // adds dashed white border
+	function style(feature) {
+		return {
+			weight: 2,
+			opacity: 1,
+			color: 'white',
+			dashArray: '3',
+			fillOpacity: 0.7,
+			fillColor: getColor(feature.properties.pop_est)
+		};
+	}
+        
+        L.geoJson(europeData, {style:style}).addTo(map);
+   
+        //define geojson variable
+        var geojson;
+
+        //highlights countries when hovered over, updates the control
+	function highlightFeature(e) {
+		var layer = e.target;
+
+		layer.setStyle({
+			weight: 5,
+			color: '#666',
+			dashArray: '',
+			fillOpacity: 0.7
+		});
+
+		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+			layer.bringToFront();
+		}
+
+		info.update(layer.feature.properties);
+	}
+        
+        //resets geojson layer to default style
+	function resetHighlight(e) {
+		geojson.resetStyle(e.target);
+		info.update();
+	}
+        
+        //zooms to the country on click
+	function zoomToFeature(e) {
+		map.fitBounds(e.target.getBounds());
+	}
+
+        //adds event listeners to the europe country layers
+	function onEachFeature(feature, layer) {
+		layer.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight,
+			click: zoomToFeature
+		});
+	}
+        
+	geojson = L.geoJson(europeData, {
+		style: style,
+		onEachFeature: onEachFeature
+	}).addTo(map);
+
+        //adds map credits
+	map.attributionControl.addAttribution('Population data &copy; <a href="https://geojson-maps.ash.ms/">GeoJSON Regions | Ash Kyd</a>');
+
+        //creates legend, adds to map 
+        var legend = L.control({position: 'bottomright'});
+
+	legend.onAdd = function (map) {
+                
+           var div = L.DomUtil.create('div', 'info legend'),
+	           grades = [0,500000,10000000, 20000000, 30000000, 40000000, 50000000, 60000000,80000000],
+		   labels = [],
+		   from, to;
+                
+           //loop through our density intervals and generate a label with a colored square for each interval
+	   for (var i = 0; i < grades.length; i++) {
+		from = grades[i];
+		to = grades[i + 1];
+
+		labels.push(
+		    '<i style="background:' + getColor(from + 1) + '"></i> ' +
+		    from + (to ? '&ndash;' + to : '+'));
+		}
+
+	    div.innerHTML = labels.join('<br>');
+	    return div;
+	};
+        
+	legend.addTo(map);
+   </script>
+</body>
+</html>
